@@ -2,12 +2,12 @@
 FROM python:3.8-slim
 
 # Set the working directory in the container
-WORKDIR /usr/src/app
+WORKDIR /app
 
-# Install git-lfs
-RUN apt-get update && \
-    apt-get install -y git-lfs && \
-    git-lfs install
+# Install system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential git wget && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install miniconda
 RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
@@ -27,14 +27,31 @@ ENV PATH="/miniconda/envs/jarvis/bin:$PATH"
 # Install PyTorch, torchvision, torchaudio, and CUDA
 RUN conda install pytorch torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia -y
 
-# Copy the current directory contents into the container at /usr/src/app
-COPY . /usr/src/app
+# Copy the requirements.txt file into the container
+COPY ./server/requirements.txt .
 
 # Install any needed packages specified in requirements.txt
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt && \
+    rm requirements.txt
 
-# Download models
-RUN cd models && bash download.sh
+# Install nodejs and npm
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    nodejs npm && \
+    rm -rf /var/lib/apt/lists/*
 
-# Run server
-CMD ["python", "models_server.py", "--config", "configs/config.lite.yaml"]
+# Copy source files
+COPY . .
+
+# Install web server dependencies
+RUN cd web && npm install
+
+# Expose the model server ports
+EXPOSE 8004
+EXPOSE 8005
+# Expose the web server port
+EXPOSE 9999
+
+WORKDIR /app/server
+
+# Start the model and web server
+CMD ["python3", "models_server.py", "--config", "configs/config.lite.yaml"]
