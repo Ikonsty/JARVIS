@@ -1,0 +1,40 @@
+# Use an official Python runtime as a parent image
+FROM python:3.8-slim
+
+# Set the working directory in the container
+WORKDIR /usr/src/app
+
+# Install git-lfs
+RUN apt-get update && \
+    apt-get install -y git-lfs && \
+    git-lfs install
+
+# Install miniconda
+RUN wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
+    bash Miniconda3-latest-Linux-x86_64.sh -b -p /miniconda && \
+    rm Miniconda3-latest-Linux-x86_64.sh
+
+ENV PATH="/miniconda/bin:$PATH"
+
+# Create a new conda environment
+RUN conda create -n jarvis python=3.8 -y
+
+# Make RUN commands use the new environment
+SHELL ["/bin/bash", "-c"]
+RUN echo "source activate jarvis" > ~/.bashrc
+ENV PATH="/miniconda/envs/jarvis/bin:$PATH"
+
+# Install PyTorch, torchvision, torchaudio, and CUDA
+RUN conda install pytorch torchvision torchaudio pytorch-cuda=11.7 -c pytorch -c nvidia -y
+
+# Copy the current directory contents into the container at /usr/src/app
+COPY . /usr/src/app
+
+# Install any needed packages specified in requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Download models
+RUN cd models && bash download.sh
+
+# Run server
+CMD ["python", "models_server.py", "--config", "configs/config.lite.yaml"]
